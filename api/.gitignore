@@ -1,0 +1,6 @@
+Lib
+Include
+Scripts
+.vscode
+__pycache__
+pyenv.cfg

@@ -1,0 +1,8 @@
+altair
+xlsxwriter
+click
+pydantic
+sqlalchemy
+psycopg2-binary
+elasticsearch
+pytest

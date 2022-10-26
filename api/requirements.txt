@@ -1,0 +1,14 @@
+elasticsearch>=7.0.0,<8.0.0
+openpyxl
+requests
+fastapi
+ldap3
+pydantic
+python-jose
+uvicorn
+sqlalchemy
+psycopg2
+pytz
+python-multipart
+pandas
+altair

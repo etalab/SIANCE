@@ -1,0 +1,83 @@
+{
+  "name": "my-app",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@material-ui/core": "4.11.0",
+    "@material-ui/data-grid": "4.0.0-alpha.7",
+    "@material-ui/icons": "4.9.1",
+    "@material-ui/lab": "4.0.0-alpha.56",
+    "@testing-library/jest-dom": "^4.2.4",
+    "@testing-library/react": "^9.5.0",
+    "@testing-library/user-event": "^7.2.1",
+    "@turf/rewind": "^6.3.0",
+    "@types/d3": "^5.16.3",
+    "@types/jest": "^24.9.1",
+    "@types/ngeohash": "^0.6.2",
+    "@types/node": "^12.12.62",
+    "@types/react": "^16.9.49",
+    "@types/react-dom": "^16.9.8",
+    "@types/react-router": "^5.1.8",
+    "@types/react-router-dom": "^5.1.5",
+    "constate": "^3.1.0",
+    "d3": "^6.2.0",
+    "d3-array": "^2.8.0",
+    "d3-scale": "^3.2.3",
+    "d3-scale-chromatic": "^2.0.0",
+    "d3-shape": "^2.0.0",
+    "fontsource-roboto": "^3.0.3",
+    "isomorphic-unfetch": "^3.0.0",
+    "ngeohash": "^0.6.3",
+    "prop-types": "^15.7.2",
+    "react": "^16.13.1",
+    "react-app-polyfill": "^1.0.6",
+    "react-dom": "^16.13.1",
+    "react-error-boundary": "^3.0.2",
+    "react-excel-renderer": "^1.1.0",
+    "react-file-reader": "^1.1.4",
+    "react-rough": "^2.3.0",
+    "react-router-dom": "^5.2.0",
+    "react-scripts": "^4.0.3",
+    "react-spring": "^8.0.27",
+    "react-vega": "^7.4.3",
+    "react-window": "^1.8.6",
+    "roughjs": "^4.3.1",
+    "source-map-explorer": "^2.5.0",
+    "swr": "^0.3.5",
+    "typecheck.macro": "^0.7.1",
+    "typescript": "^3.7.5",
+    "unfetch": "^4.1.0",
+    "vega": "^5.20.2",
+    "vega-lite": "^5.1.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "analyze": "source-map-explorer 'build/static/js/*.js'"
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all",
+      "ie 11"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version",
+      "ie 11"
+    ]
+  },
+  "devDependencies": {
+    "@babel/core": "^7.11.6",
+    "react-is": "^16.13.1",
+    "@types/chai": "^4.2.15",
+    "chai": "^4.3.4"
+  }
+}

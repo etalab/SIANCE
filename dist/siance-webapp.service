@@ -1,0 +1,11 @@
+[Unit]
+Description=Siance Webapp
+After=network.target
+After=nginx
+
+[Service]
+Type=simple
+ExecStart=/bin/bash "PATH OF siance-webapp-start.sh"
+
+[Install]
+WantedBy=multi-user.target

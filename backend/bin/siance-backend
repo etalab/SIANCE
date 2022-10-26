@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+import schedule
+import time
+import click
+import logging
+
+from siancedb.models import SessionWrapper, SiancedbPipeline, get_active_model_id
+
+from siancedb.elasticsearch.management import bulk_insert
+
+import siancebackend.localserver as localserver
+
+from siancebackend.letters import build_letters
+from siancebackend.indexation import build_documents
+from siancebackend.insert_document_id import insert_docid_for_all_documents
+
+from siancebackend.letter_management.letter_acquisition import (
+    fetch_rss_letters,
+    download_letter,
+)
+from siancebackend.sections_demands import build_sections_demands
+from siancebackend.siv2metadata import build_siv2metadata
+from siancebackend.trigrams import build_trigrams
+from siancebackend.isotopes import build_isotopes
+from siancebackend.classifiers.classify_themes import build_themes
+from siancebackend.classifiers.classify_topics import (
+    build_predictions_with_id_model,
+    build_new_model,
+    evaluate_model_with_id_model,
+    classify_topics_default_model,
+)
+from siancebackend.classifiers.embeddings import recompute_embeddings
+from siancebackend.pipe_logger import reinitialize_log_state, increment_log_state
+
+from datetime import datetime
+
+
+logger = logging.getLogger("siance-backend")
+logger.setLevel(logging.DEBUG)
+# create file handler which logs even debug messages
+fh = logging.FileHandler("siance_backend.log")
+fh.setLevel(logging.DEBUG)
+# create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+# create formatter and add it to the handlers
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+fh.setFormatter(formatter)
+ch.setFormatter(formatter)
+# add the handlers to the logger
+logger.addHandler(fh)
+logger.addHandler(ch)
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+def webserver():
+    logger.info("Starting webserver for PDF documents and referentials")
+    localserver.run()
+
+
+@cli.command()
+def write_letters_db():
+    logger.info("Starting writing letters in Postgres")
+    # Do the transition:
+    # 1) Drop the tables (manually)
+    # 2) Call the sqlinterface.py
+    # 3) Lanuch this file
+    with SessionWrapper() as db:
+        build_letters(db)
+    logger.info("DONE")
+
+
+@cli.command()
+def write_sections_demands_db():
+    logger.info("Starting writing sections and demands in Postgres")
+    # Do the transition:
+    # 1) Drop the tables (manually)
+    # 2) Call the sqlinterface.py
+    # 3) Lanuch this file
+    with SessionWrapper() as db:
+        build_sections_demands(db)
+    logger.info("DONE")
+
+
+@cli.command()
+@click.argument("id_model")
+def write_predictions_db(id_model):
+    logger.info(f"Generating classification table (id_model: {id_model})")
+    with SessionWrapper() as db:
+        build_predictions_with_id_model(db, id_model)
+    logger.info("Classification finished")
+
+
+@cli.command()
+@click.argument("id_model", default=get_active_model_id())
+def generate_index(id_model: int):
+    logger.info("Generating index !")
+    with SessionWrapper() as db:
+        bulk_insert(build_documents(db, id_model))
+    logger.info("Index construction finished")
+
+
+@cli.command()
+def train_embeddings():
+
+    logger.info("Re-compute embeddings and save them")
+    recompute_embeddings()
+    logger.info("Re-compute of all embeddings finished")
+
+
+@cli.command()
+@click.argument("architecture", default="grid-search")
+@click.argument("top_n", default=1)
+def train_new_model(architecture, top_n):
+    """
+    Args:
+        architecture (str): possible values among [basic, grid-search, hierarchical, multi-output, custom-hierarchical]
+        top_n (int):
+    """
+    logger.info("Re-train model from pre-saved embeddings")
+    build_new_model(architecture=architecture, top_n=top_n)
+    logger.info("Re-train finished")
+
+
+@cli.command()
+@click.argument("id_model")
+def evaluate_model(id_model):
+    logger.info(f"Evaluating model predictions (id_model: {id_model})")
+    evaluate_model_with_id_model(id_model)
+    logger.info("Evaluation performed")
+
+
+@cli.command()
+def predict_default():
+    logger.info("Generating classification table (default multi-class model)")
+    classify_topics_default_model()
+    logger.info("Classification finished")
+
+
+@cli.command()
+def insert_docid():
+    logger.info("Generating docids")
+    insert_docid_for_all_documents()
+    logger.info("Done")
+
+
+@cli.command()
+@click.argument("id_model", default=29)
+def background_watch(id_model: int):
+    """
+    Add new letters and index them every for every N amount of time
+    (N being hours).
+    """
+    between_runs_hours = 24
+
+    pipe_logger = SiancedbPipeline(
+        completed_runs=0, id_model=id_model, between_runs_hours=between_runs_hours
+    )
+
+    def job():
+        reinitialize_log_state(pipe_logger)
+
+        logger.info("Downloading letters")
+        letters = fetch_rss_letters()
+        logger.info("Letters retrieved from the RSS")
+        for letter in letters:
+            download_letter(letter)
+        logger.info("Adding new letters")
+        with SessionWrapper() as db:
+            build_letters(db, pipe_logger=pipe_logger)
+            db.commit()
+            logger.info("Letters added")
+        with SessionWrapper() as db:
+            build_siv2metadata(db)
+            logger.info("Siv2 metadata and interlocutor added")
+        with SessionWrapper() as db:
+            logger.info("Building demands / sections")
+            build_sections_demands(db, pipe_logger=pipe_logger)
+            db.commit()
+            logger.info("Demands / sections built")
+        with SessionWrapper() as db:
+            logger.info("Building trigrams")
+            build_trigrams(db, pipe_logger=pipe_logger)
+            db.commit()
+            logger.info("Trigrams built")
+        with SessionWrapper() as db:
+            logger.info("Building isotopes")
+            build_isotopes(db)
+            db.commit()
+            logger.info("Isotopes built")
+        with SessionWrapper() as db:
+            logger.info("Building predicted metadata")
+            build_themes(db, pipe_logger=pipe_logger)
+            db.commit()
+            logger.info("Predicted metadata built")
+        with SessionWrapper() as db:
+            logger.info("Predict sentences")
+            build_predictions_with_id_model(db, id_model, pipe_logger=pipe_logger)
+            logger.info("Sentences predicted")
+        with SessionWrapper() as db:
+            logger.info("Indexing new documents")
+            bulk_insert(build_documents(db, id_model, pipe_logger=pipe_logger))
+            logger.info("Index finished")
+
+        increment_log_state(pipe_logger)
+
+    job()
+    logger.info(f"Running the job every {between_runs_hours} hours")
+    schedule.every(between_runs_hours).hours.do(job)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    cli()

@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+
+import click
+import logging
+
+import json
+from elasticsearch import Elasticsearch
+from elasticsearch.helpers import bulk
+
+from siancedb.config import get_config, set_config_file
+
+from siancedb.globals import (
+    create_all_tables,
+    cleanup_dabatases,
+    cleanup_prod_dabatases,
+    fill_databases_from_preprod_to_prod,
+)
+from siancedb.models import SiancedbUser, SessionWrapper
+from siancedb.elasticsearch.management import reinitialize
+import siancedb.create_pickle_files as scpf
+from datetime import date, datetime
+
+###
+# FIXME: this function is in
+# /siancebackend/letter_management/letter_cleaning.py
+# but should _definitely not be there_ as it seems rather
+# unspecific. It should belong to the « siancedb » package.
+# Until migration is done, it is copy pasted here
+
+
+def process_french_date(date: str):
+    """
+    In the database dw_lettres
+    the dates are stored as string
+    XX/XX/XX in French format.
+
+    This functions converts this back
+    to a nice date object in python.
+
+    If default is provided, upon parsing error
+    the default value is returned.
+    Otherwise, there might be exceptions raised.
+    """
+    fmt_1 = "%Y-%m-%dT%H:%M:%SZ"
+    fmt_2 = "%d/%m/%Y"
+
+    if date is None:
+        return None
+
+    if isinstance(date, datetime):
+        return date
+
+    try:
+        datetime_ = datetime.strptime(date, fmt_1)
+        return datetime_
+    except (ValueError, TypeError):
+        try:
+            datetime_ = datetime.strptime(date, fmt_2)
+            return datetime_
+        except (ValueError, TypeError):
+            return datetime(1970, 1, 1)
+
+
+def process_all_dates(*dates):
+    """
+    Given a list of possible dates in decreasing
+    order of importance, tries
+    to build the array of the same size containing
+    the parsed dates, using the most important
+    possible parsing for every field.
+    """
+
+    pre_parse = [process_french_date(d) for d in dates]
+
+    if any(pre_parse):  # Some date parsing was a success
+        # Finds the first non null value in the list
+        findfirst = next((el for el in pre_parse if el is not None))
+        return [x or findfirst for x in pre_parse]
+    else:
+        return [datetime(1970, 1, 1).date() for _ in pre_parse]
+
+
+###
+
+
+@click.group()
+def cli():
+    """
+    Manage databases and indices of the SIANCE application.
+    """
+    pass
+
+
+@cli.command()
+def initdb():
+    """
+    Initialize databases, assuming that the database
+    is running and the corresponding users exists.
+    """
+    print("Initializing databases [...]", end=" ")
+    create_all_tables()
+    print("DONE")
+    with SessionWrapper() as db:
+        base_user_exist = int(
+            db.query(SiancedbUser)
+            .filter(SiancedbUser.id_user == 1, SiancedbUser.username == "admin")
+            .count()
+        )
+        if not base_user_exist:
+            print("Creating admin user [...]", end=" ")
+            db.add(
+                SiancedbUser(
+                    id_user=1,
+                    username="admin",
+                    fullname="admin",
+                    is_admin=True,
+                    prefs="{}",
+                )
+            )
+            db.commit()
+    print("DONE")
+
+
+@cli.command()
+def dropdb():
+    """
+    Cleanup the database.
+    """
+    x = input("Warning do you want to drop tables ? (y/n)")
+    if x == "y":
+        print("Dropping tables")
+        with SessionWrapper() as db:
+            cleanup_dabatases(db)
+        print("DONE")
+
+
+@cli.command()
+def reinites():
+    """
+    (Re)-initializes the elasticsearch index.
+    This deletes previous indices and builds
+    the new ones.
+    """
+    reinitialize()
+
+
+@cli.command()
+@click.argument("tablename")
+def pickle_save(tablename):
+    if tablename in scpf.TABLES:
+        scpf.save_to_pickle(*scpf.TABLES[tablename])
+    else:
+        print(f"Please select one of {scpf.TABLES.keys()}")
+
+
+@cli.command()
+@click.argument("tablename")
+def pickle_load(tablename):
+    if tablename in scpf.TABLES:
+        scpf.load_from_pickle(*scpf.TABLES[tablename])
+    else:
+        print(f"Please select one of {scpf.TABLES.keys()}")
+
+
+@cli.command()
+@click.argument("in_file", type=click.File("rb"))
+@click.argument("index")
+@click.option("--datefield", "-d", multiple=True)
+def import_into_elasticsearch(in_file, index, datefield):
+    """
+    imports the file into the index given in argument
+    """
+    ES = get_config()["elasticsearch"]
+    es = Elasticsearch(hosts=[{"host": ES["host"]}], timeout=30)
+
+    def build_one_document(doc_dict):
+        if len(datefield) > 0:
+            for key in doc_dict.keys():
+                if "date" in key:
+                    doc_dict[key] = process_french_date(doc_dict[key])
+        else:
+            doc_dict["date"] = process_all_dates(
+                *[doc_dict.get(key, "") for key in datefield]
+            )[0]
+
+        return doc_dict
+
+    actions = (
+        {
+            "_index": index,
+            "_type": "_doc",
+            "_source": build_one_document(json.loads(line)),
+        }
+        for line in in_file.readlines()
+        if line.strip() != ""
+    )
+
+    bulk(es, actions)
+
+
+@cli.command()
+def migrate_to_prod():
+    answer = input("Do you want to fully reindex prod? yes (y) / no(n)")
+    if answer == "y":
+        print("Copy elasticsearch")
+        reinitialize()
+        ES = get_config()["elasticsearch"]
+        es = Elasticsearch(hosts=[{"host": ES["host"]}], timeout=30)
+        for index in ["letters", "demands", "cres"]:
+            es.reindex(
+                {"source": {"index": index}, "dest": {"index": f"{index}_prod"}},
+                wait_for_completion=True,
+                request_timeout=3000,
+            )
+    answer = input("Do you want to migrate tables? yes (y) / no(n)")
+    if answer == "y":
+        print("Migrate databases")
+        with SessionWrapper() as db:
+            cleanup_prod_dabatases(db)
+        print("Initializing databases [...]", end=" ")
+        create_all_tables()
+        print("DONE")
+        fill_databases_from_preprod_to_prod()
+        print("Databases migrated")
+    print("Migration terminated")
+    
+
+
+if __name__ == "__main__":
+    cli()

@@ -1,0 +1,78 @@
+{
+    "prod": false,
+  "local": true,
+  "siv2": {
+    "url": "xxx",
+    "mock": "xxx"
+  },
+  "geography": {
+    "regions": "regions.json"
+  },
+  "letters": {
+    "rss": [
+      "ADD-FLUX-INB",
+      "ADD-FLUX-INDUSTRIAL",
+      "ADD-FLUX-MEDICAL"
+    ],
+    "path": "path of letters",
+    "data": {
+      "letters_pdf": "",
+      "letters_txt": "",
+      "metadata": ""
+    },
+    "themes": "referentiel_themes",
+    "INBs": "referentiel_INB",
+    "hospitals": "referentiel_hospitals",
+    "trigrams": {
+      "edf": "referentiel_edf_trigrams"
+    }
+  },
+  "learning": {
+      "topics_models": "topics_models",
+      "themes_models": "themes_models",
+      "precomputed": "precomputed",
+      "pickles": "pickles"
+  },
+  "ldap": {
+    "host": "xxx",
+    "port": "xxx",
+    "superusers": []
+  },
+  "postgres": {
+    "host": "xxx",
+    "port": "xxx",
+    "user": "xxx",
+    "pass": "xxx",
+    "dbname": "xxx"
+  },
+  "jwt": {
+    "secret": "xxx"
+  },
+  "elasticsearch": {
+    "url": "xxx",
+    "host": "xxx",
+    "port": "xxx",
+    "front_index": "siancedb_new",
+    "letters": "letters",
+    "demands": "demands",
+    "page_size": 12
+  },
+  "tika": {
+    "host": "tika",
+    "port": "9998",
+    "url": "xxx"
+  },
+  "api": {
+    "url": "http://localhost:3012",
+    "host": "localhost",
+    "port": "3012"
+  },
+  "front": {
+    "url": "http://localhost",
+    "port": "80",
+    "host": "localhost"
+  },
+  "timezones": {
+    "ISO8601": "%Y-%m-%d %H:%M:%S.%f"
+  }
+}

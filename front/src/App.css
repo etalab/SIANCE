@@ -1,0 +1,21 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  scroll-behavior: smooth;
+}
+
+.vega-embed {
+  width: 110%
+}
+
+#root {
+  height: 100%;
+}
+
+/* This is so that Plotly tooltips
+  have an _incredible_ z-index */
+.hoverlayer {
+  z-index: 100;
+}

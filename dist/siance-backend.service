@@ -1,0 +1,9 @@
+[Unit]
+Description=Siance Backend
+
+[Service]
+Type=simple
+ExecStart=/bin/bash "PATH OF siance-backend-start.sh"
+
+[Install]
+WantedBy=multi-user.target

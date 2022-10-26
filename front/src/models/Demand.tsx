@@ -1,0 +1,27 @@
+export type EDemand = {
+  id_letter: number;
+  id_demand: number;
+  name: string;
+  demand_type: string;
+  content: string;
+  summary: string;
+  date: Date;
+  site_name: string[];
+  complementary_site_name: string;
+  interlocutor_name: string;
+  interlocutor_city: string;
+  identifiers: number[];
+  theme: string;
+  sectors: string[];
+  domains: string[];
+  natures: string[];
+  pilot_entity: string;
+  resp_entity: string;
+  demands_a: number;
+  demands_b: number;
+  topics: string[];
+  siv2?: string;
+  equipments_trigrams: string[];
+  equipments_full_names: string[];
+  isotopes: string[];
+};
